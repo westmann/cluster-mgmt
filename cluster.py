@@ -11,7 +11,7 @@ def getCluster(executable, cluster_file):
     if len(cluster_file) == 0:
         cluster_file = os.path.join(os.path.dirname(executable), "hosts")
     f = open(cluster_file)
-    result = [ host.strip() for host in f.readlines() ]
+    result = [host.strip() for host in f.readlines()]
     f.close()
     return result
 
@@ -41,6 +41,28 @@ def local_addr(host):
 def cmd_cluster(cluster):
     for host in cluster:
         print(host)
+
+
+def cmd_cluster_config(cluster, cluster_params):
+    hosts = [local_addr(host) for host in cluster]
+    # hosts = ["10.0.242.20", "10.0.182.131", "10.0.154.94"]
+    ncs_per_host = cluster_params.get("ncs", 2)
+    part_per_nc = cluster_params.get("partitions", 2)
+    no_hosts = cluster_params.get("hosts", len(hosts))
+
+    conf_name = "h{:d}n{:d}p{:d}".format(no_hosts, ncs_per_host, part_per_nc)
+
+    for h in range(0, no_hosts):
+        for n in range(0, ncs_per_host):
+            nc_id = "{:s}{:d}".format(chr(ord('a') + h), n)
+            print("[nc/{:s}]".format(nc_id))
+            print("address={:s}".format(hosts[h]))
+            print("port={:d}".format(9090 + n))
+            dir = "/cbas/{:s}/{:s}/analytics".format(conf_name, nc_id)
+            print("txnlogdir={:s}/log/txnlog".format(dir))
+            print("coredumpdir={:s}/log/coredump".format(dir))
+            io_dirs = ["{:s}/io/{:d}".format(dir, i) for i in range(0, part_per_nc)]
+            print("iodevices={:s}\n".format(",".join(io_dirs)))
 
 
 def cmd_get_logs(cluster, remote_log_dir):
@@ -73,13 +95,15 @@ def cmd_ssh(cluster, cmd):
 
 
 def print_help(executable):
-    print(executable + " command [-c <cluster_file>]")
+    print("usage:")
+    print(executable + " [-c<cluster_file>] command\n")
     print("available commands are:")
     indent = ' ' * 4
     print(indent + "cluster")
-    print(indent + "get_logs <arg>")
+    print(indent + "cluster_config [-h<no_hosts>] [-p<ncs_per_host>] [-p<partitions_per_nc>]")
+    print(indent + "get_logs <remote_log_dir>")
     print(indent + "local_addr")
-    print(indent + "ssh <arg>")
+    print(indent + "ssh <remote_cmd>")
 
 
 def get_global_params(argv, executable):
@@ -98,6 +122,26 @@ def get_global_params(argv, executable):
     return params, args
 
 
+def get_cluster_params(argv, executable):
+    params = {}
+    try:
+        opts, args = getopt.getopt(argv, "h:n:p:", ["hosts=", "ncs=", "partitions="])
+    except getopt.GetoptError:
+        print_help(executable)
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt in ("-h", "--hosts"):
+            params["hosts"] = int(arg)
+        elif opt in ("-n", "--ncs"):
+            params["ncs"] = int(arg)
+        elif opt in ("-p", "--partitions"):
+            params["partitions"] = int(arg)
+    if len(args) > 0:
+        print("unused cluster parameters {:s}", args)
+        sys.exit(2)
+    return params, args
+
+
 def main(argv):
     executable = argv[0]
 
@@ -107,21 +151,26 @@ def main(argv):
         print_help(executable)
         sys.exit(2)
     cmd = args[0]
+    args = args[1:]
 
     cluster = getCluster(executable, params.get("cluster_file", ""))
 
     if cmd == "cluster":
         cmd_cluster(cluster)
-    elif cmd == "get_logs" and len(args) > 1:
-        cmd_get_logs(cluster, args[1])
+    elif cmd == "cluster_config":
+        cluster_params, args = get_cluster_params(args, executable)
+        cmd_cluster_config(cluster, cluster_params)
+    elif cmd == "get_logs" and len(args) > 0:
+        cmd_get_logs(cluster, args[0])
     elif cmd == "local_addr":
         cmd_local_addr(cluster)
-    elif cmd == "ssh" and len(args) > 1:
-        cmd_ssh(cluster, args[1])
+    elif cmd == "ssh" and len(args) > 0:
+        cmd_ssh(cluster, args[0])
     else:
         print_help(executable)
         sys.exit(2)
 
+
 if __name__ == "__main__":
-    #print(os.getenv("SSH_AUTH_SOCK"))
+    # print(os.getenv("SSH_AUTH_SOCK"))
     main(sys.argv)
