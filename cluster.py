@@ -95,15 +95,17 @@ def cmd_ssh(cluster, cmd):
 
 
 def print_help(executable):
-    print("usage:")
-    print(executable + " [-c<cluster_file>] command\n")
-    print("available commands are:")
-    indent = ' ' * 4
-    print(indent + "cluster")
-    print(indent + "cluster_config [-h<no_hosts>] [-p<ncs_per_host>] [-p<partitions_per_nc>]")
-    print(indent + "get_logs <remote_log_dir>")
-    print(indent + "local_addr")
-    print(indent + "ssh <remote_cmd>")
+    message = """usage:
+    {:s} [-c<cluster_file>] command
+
+available commands are:
+    cluster
+    cluster_config [-h<no_hosts>] [-p<ncs_per_host>] [-p<partitions_per_nc>]
+    get_logs <remote_log_dir>
+    local_addr
+    ssh <remote_cmd>
+    """.format(executable)
+    print(message)
 
 
 def get_global_params(argv, executable):
